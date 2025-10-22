@@ -2,6 +2,9 @@
 Interactive Isochrone Fetcher
 Prompts user for address and time range, then fetches isochrone from OpenRouteService API.
 """
+import utils.http_session
+import utils.transport
+import utils.session
 import json
 import requests
 import sys

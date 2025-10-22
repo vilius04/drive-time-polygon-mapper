@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Isochrone Map Viewer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 90%;
+        }
+        
+        #controls h2 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        #controls p {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        #status {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .error {
+            color: #d32f2f;
+            font-weight: 500;
+        }
+        
+        .success {
+            color: #388e3c;
+            font-weight: 500;
+        }
+        
+        #legend {
+            position: absolute;
+            bottom: 30px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 13px;
+        }
+        
+        #legend h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 15px;
+            margin-right: 8px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2>Drive Time Isochrone</h2>
+        <p id="info">Loading map...</p>
+        <div id="status"></div>
+    </div>
+    
+    <div id="legend">
+        <h3>Legend</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(255, 107, 107, 0.35);"></div>
+            <span>Reachable area</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4285F4;"></div>
+            <span>Starting point</span>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+
+    <script>
+        let map;
+        let infoElement = document.getElementById('info');
+        let statusElement = document.getElementById('status');
+
+        async function initMap() {
+            // Default center (will be updated based on data)
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 41.6, lng: -87.9 },
+                zoom: 10,
+                mapTypeControl: true,
+                mapTypeControlOptions: {
+                    style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+                },
+                fullscreenControl: true,
+                streetViewControl: false,
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+
+            infoElement.textContent = 'Loading isochrone data...';
+
+            try {
+                // Try to load the Google Maps format first (more efficient)
+                const response = await fetch('isochrone_gmaps.json');
+                
+                if (!response.ok) {
+                    throw new Error('Could not load isochrone_gmaps.json');
+                }
+                
+                const data = await response.json();
+
+                if (!data.polygons || data.polygons.length === 0) {
+                    throw new Error('No polygon data found');
+                }
+
+                // Draw all polygons
+                let bounds = new google.maps.LatLngBounds();
+                
+                data.polygons.forEach((poly, index) => {
+                    const polygon = new google.maps.Polygon({
+                        map: map,
+                        paths: poly.paths,
+                        strokeColor: '#FF6B6B',
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: '#FF6B6B',
+                        fillOpacity: 0.25,
+                        geodesic: true
+                    });
+                    
+                    // Extend bounds to include this polygon
+                    poly.paths.forEach(ring => {
+                        if (Array.isArray(ring[0]) && Array.isArray(ring[0][0])) {
+                            // Nested array (MultiPolygon)
+                            ring.forEach(subRing => {
+                                subRing.forEach(point => {
+                                    bounds.extend(new google.maps.LatLng(point.lat, point.lng));
+                                });
+                            });
+                        } else {
+                            // Simple polygon
+                            ring.forEach(point => {
+                                bounds.extend(new google.maps.LatLng(point.lat, point.lng));
+                            });
+                        }
+                    });
+                });
+
+                map.fitBounds(bounds);
+
+                // Add marker at center
+                const center = bounds.getCenter();
+                new google.maps.Marker({
+                    position: center,
+                    map: map,
+                    title: 'Starting Point',
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#4285F4',
+                        fillOpacity: 1,
+                        strokeColor: 'white',
+                        strokeWeight: 3
+                    }
+                });
+
+                infoElement.textContent = 'Isochrone loaded successfully';
+                statusElement.innerHTML = `<span class="success">✓ ${data.polygons.length} polygon(s) displayed</span>`;
+
+            } catch (error) {
+                console.error('Error loading isochrone:', error);
+                infoElement.textContent = 'Error loading isochrone';
+                statusElement.innerHTML = `<span class="error">✗ Could not load isochrone_gmaps.json</span><br>
+                    <small>Make sure you've run process_isochrone.py and the file is in the same directory as this HTML file.</small>`;
+            }
+        }
+
+        // Alternative function to load GeoJSON format
+        async function loadGeoJSON() {
+            try {
+                const response = await fetch('isochrone_processed.geojson');
+                const geojson = await response.json();
+                
+                map.data.addGeoJson(geojson);
+                map.data.setStyle({
+                    strokeColor: '#FF6B6B',
+                    strokeWeight: 2,
+                    fillColor: '#FF6B6B',
+                    fillOpacity: 0.25
+                });
+
+                // Fit bounds to features
+                const bounds = new google.maps.LatLngBounds();
+                map.data.forEach(feature => {
+                    feature.getGeometry().forEachLatLng(latLng => {
+                        bounds.extend(latLng);
+                    });
+                });
+                map.fitBounds(bounds);
+
+                infoElement.textContent = 'Isochrone loaded (GeoJSON format)';
+                statusElement.innerHTML = '<span class="success">✓ Data loaded</span>';
+            } catch (error) {
+                console.error('Error loading GeoJSON:', error);
+            }
+        }
+    </script>
+
+    <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual Google Maps API key -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+</body>
+</html>

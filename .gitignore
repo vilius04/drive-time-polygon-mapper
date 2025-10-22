@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Generated output files
+isochrone.geojson
+isochrone_processed.geojson
+isochrone_gmaps.json
+isochrone_minus_chicago.geojson
+isochrone_minus_chicago_paths.json
+
+# Large data files (but keep the structure)
+data/*.shp
+data/*.shx
+data/*.dbf
+data/*.prj
+data/*.cpg
+data/*.xml
+data/*.zip
+
+# Keep the exclude_zips.txt file
+!data/exclude_zips.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

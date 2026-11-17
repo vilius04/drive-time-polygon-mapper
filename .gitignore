@@ -43,6 +43,7 @@ data/*.zip
 !data/exclude_zips.txt
 
 # IDE
+.vscode/
 .idea/
 *.swp
 *.swo
@@ -51,5 +52,3 @@ data/*.zip
 # OS
 .DS_Store
 Thumbs.db
-config.bat
-node_modules
